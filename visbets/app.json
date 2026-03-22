@@ -1,0 +1,88 @@
+{
+  "expo": {
+    "name": "VisBets",
+    "slug": "visbets",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "scheme": [
+      "visbets",
+      "visbets-preview",
+      "visbets-dev",
+      "com.googleusercontent.apps.254361116090-ghud5s1g4o1ul5t2bt27ne10mb7nsgrm"
+    ],
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000000"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.userrealitylabs.visbets",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      },
+      "package": "com.userrealitylabs.visbets",
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "user-reality-labs",
+          "project": "visbets-mobile"
+        }
+      ],
+      "expo-router",
+      "expo-web-browser",
+      "expo-secure-store",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.254361116090-ghud5s1g4o1ul5t2bt27ne10mb7nsgrm"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#F5A623",
+          "sounds": []
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ],
+      "@sentry/react-native"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "7c96463a-66a4-42c7-a7f7-e61e13cfa5ed"
+      }
+    },
+    "owner": "harrisjdcampbell"
+  }
+}

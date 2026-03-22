@@ -1,0 +1,43 @@
+# Environment secrets — NEVER commit
+.env
+.env.local
+.env*.local
+.env.development
+.env.preview
+.env.production
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Firebase / Google services
+GoogleService-Info.plist
+GoogleService-Info*.plist
+google-services.json
+
+# Keys
+*.pem
+*.p8
+*.p12
+*.key
+*.jks
+*.mobileprovision
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.*
+
+# Python
+__pycache__/
+*.pyc
+venv/
