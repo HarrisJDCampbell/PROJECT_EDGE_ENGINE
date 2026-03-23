@@ -32,6 +32,7 @@ export function resolveBookLine(
   bookLines: Record<string, number | null> | undefined,
   preferredBook: string,
   preferredLabel: string,
+  excludeBook?: string
 ): { line: number | undefined; label: string } {
   if (!bookLines) return { line: undefined, label: preferredLabel };
 
@@ -43,17 +44,16 @@ export function resolveBookLine(
 
   // 2. Try the standard fallback order
   for (const book of BOOK_FALLBACK_ORDER) {
-    if (book === preferredBook) continue;
+    if (book === preferredBook || book === excludeBook) continue;
     const line = bookLines[book];
     if (line != null) {
       return { line, label: shortLabel(book) };
     }
   }
 
-  // 3. Last resort: try ANY key in bookLines (covers DFS platforms,
-  //    regional books, or any source the backend provides)
+  // 3. Last resort: try ANY key in bookLines
   for (const [book, line] of Object.entries(bookLines)) {
-    if (book === preferredBook) continue;
+    if (book === preferredBook || book === excludeBook) continue;
     if (line != null) {
       return { line, label: shortLabel(book) };
     }

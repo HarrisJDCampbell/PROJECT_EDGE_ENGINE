@@ -20,10 +20,12 @@ import { spacing, borderRadius } from '../../../../theme/styles';
 import type { PerformanceTrendsProps, ChartMode, TimeRange, GameChipData } from '../../types';
 import { LockedFeatureWrapper } from '../../../common/LockedFeatureWrapper';
 
+import { Ionicons } from '@expo/vector-icons';
+
 const TIME_RANGES: TimeRange[] = ['L5', 'L10', 'L20'];
-const CHART_MODES: { mode: ChartMode; label: string; icon: string }[] = [
-  { mode: 'line', label: 'Line', icon: '📈' },
-  { mode: 'bar', label: 'Bar', icon: '📊' },
+const CHART_MODES: { mode: ChartMode; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { mode: 'line', label: 'Line', icon: 'analytics' },
+  { mode: 'bar', label: 'Bar', icon: 'bar-chart' },
 ];
 
 export function PerformanceTrends({
@@ -83,7 +85,11 @@ export function PerformanceTrends({
                 ]}
                 onPress={() => handleChartModeChange(mode)}
               >
-                <Text style={styles.modeIcon}>{icon}</Text>
+                <Ionicons
+                  name={icon}
+                  size={16}
+                  color={chartMode === mode ? colors.primary.main : colors.text.muted}
+                />
               </TouchableOpacity>
             ))}
           </View>

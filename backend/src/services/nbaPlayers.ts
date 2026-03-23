@@ -29,6 +29,23 @@ function stripDiacritics(s: string): string {
   return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 }
 
+/** 
+ * API-Sports sometimes structures suffixed names improperly, e.g "Jr. Jabari Smith".
+ * This restores it to "Jabari Smith Jr."
+ */
+export function formatPlayerName(name: string): string {
+  if (!name) return name;
+  const parts = name.trim().split(' ');
+  const first = parts[0];
+  const firstLower = first.toLowerCase();
+  
+  if (['jr.', 'sr.', 'ii', 'iii', 'iv'].includes(firstLower)) {
+    // move the suffix to the end
+    return [...parts.slice(1), first].join(' ');
+  }
+  return name.trim();
+}
+
 async function fetchPlayerIndex(): Promise<NBAPlayerEntry[]> {
   try {
     const res = await axios.get(PLAYER_INDEX_URL, { timeout: 10000 });
@@ -81,16 +98,19 @@ async function getPlayerMap(): Promise<Map<string, number>> {
  * Resolve a player name (any format) to an NBA personId.
  * Returns null if not found or on error.
  */
-export async function resolveNBAPersonId(name: string): Promise<number | null> {
+export async function resolveNBAPersonId(playerName: string): Promise<number | null> {
+  if (!playerName) return null;
   try {
     const map = await getPlayerMap();
-    const lower = stripDiacritics(name);
+    
+    const formattedSearch = formatPlayerName(playerName);
+    const normalizedSearch = stripDiacritics(formattedSearch);
 
     // Pass 1: exact "firstname lastname"
-    if (map.has(lower)) return map.get(lower)!;
+    if (map.has(normalizedSearch)) return map.get(normalizedSearch)!;
 
     // Pass 2: try "lastname firstname" reversed
-    const parts = lower.split(/\s+/);
+    const parts = normalizedSearch.split(/\s+/);
     if (parts.length === 2) {
       const reversed = `${parts[1]} ${parts[0]}`;
       if (map.has(reversed)) return map.get(reversed)!;

@@ -187,7 +187,7 @@ export default function BoardScreen() {
       // ── Right side ──
       let right: { line: number | undefined; label: string };
       if (hasBookLines) {
-        right = resolveBookLine(p.bookLines, rightBook, rightBookLabel);
+        right = resolveBookLine(p.bookLines, rightBook, rightBookLabel, leftBook);
         // Secondary fallback: any book that isn't the left book
         if (right.line == null) {
           for (const [bookKey, bookLine] of Object.entries(p.bookLines!)) {

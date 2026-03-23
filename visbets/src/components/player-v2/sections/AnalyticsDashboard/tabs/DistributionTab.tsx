@@ -55,7 +55,7 @@ function DistributionBar({
       <View style={styles.barLabelContainer}>
         <Text style={styles.barLabel}>{bucket.label}</Text>
         <Text style={styles.barCount}>
-          {bucket.count} ({bucket.percentage}%)
+          {bucket.count} ({bucket.percentage.toFixed(1)}%)
         </Text>
       </View>
       <View style={styles.barTrack}>
@@ -99,7 +99,7 @@ export function DistributionTab({ data, line }: DistributionTabProps) {
       <View style={styles.summaryRow}>
         <View style={[styles.summaryBadge, { backgroundColor: colors.semantic.success + '15' }]}>
           <Text style={[styles.summaryValue, { color: colors.semantic.success }]}>
-            {overPercentage}%
+            {overPercentage.toFixed(1)}%
           </Text>
           <Text style={[styles.summaryLabel, { color: colors.semantic.success }]}>OVER</Text>
         </View>
@@ -111,7 +111,7 @@ export function DistributionTab({ data, line }: DistributionTabProps) {
 
         <View style={[styles.summaryBadge, { backgroundColor: colors.semantic.danger + '15' }]}>
           <Text style={[styles.summaryValue, { color: colors.semantic.danger }]}>
-            {underPercentage}%
+            {underPercentage.toFixed(1)}%
           </Text>
           <Text style={[styles.summaryLabel, { color: colors.semantic.danger }]}>UNDER</Text>
         </View>
@@ -147,9 +147,9 @@ export function DistributionTab({ data, line }: DistributionTabProps) {
       <View style={styles.insightContainer}>
         <Text style={styles.insightText}>
           {overPercentage >= 60
-            ? `Strong lean OVER - ${overPercentage}% of games exceeded similar lines.`
+            ? `Strong lean over - ${overPercentage.toFixed(1)}% of recent games exceeded the line.`
             : underPercentage >= 60
-            ? `Strong lean UNDER - ${underPercentage}% of games fell short of similar lines.`
+            ? `Strong lean under - ${underPercentage.toFixed(1)}% of recent games fell short of the line.`
             : `Mixed distribution - no strong lean either direction.`}
         </Text>
       </View>

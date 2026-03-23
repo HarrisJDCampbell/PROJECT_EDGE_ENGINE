@@ -193,7 +193,7 @@ export async function getTeamSeasonGames(teamId: number): Promise<ApiSportsGame[
 }
 
 /** IDs of the last `n` completed games for a team. */
-export async function getTeamRecentCompletedGameIds(teamId: number, n = 15): Promise<number[]> {
+export async function getTeamRecentCompletedGameIds(teamId: number, n = 60): Promise<number[]> {
   const all = await getTeamSeasonGames(teamId);
   return all
     .filter((g) => g.status.long === 'Game Finished')
@@ -287,8 +287,18 @@ export async function getPlayerGameLogsFromBoxScores(
 ): Promise<ApiSportsPlayerStats[]> {
   const logs: ApiSportsPlayerStats[] = [];
 
-  // Fetch box scores in parallel (all are cached individually)
-  const boxScores = await Promise.allSettled(teamGameIds.map((id) => getGameBoxScoreRaw(id)));
+  // Fetch box scores sequentially with a small delay to respect the 10 req/sec rate limit
+  const boxScores: PromiseSettledResult<ApiSportsBoxScore[]>[] = [];
+  for (const id of teamGameIds) {
+    try {
+      const data = await getGameBoxScoreRaw(id);
+      boxScores.push({ status: 'fulfilled', value: data });
+    } catch (err) {
+      boxScores.push({ status: 'rejected', reason: err });
+    }
+    // Delay 110ms between requests to stay safely under 10req/sec limitation
+    await new Promise(r => setTimeout(r, 110)); 
+  }
 
   for (let i = 0; i < boxScores.length; i++) {
     const result = boxScores[i];
@@ -451,7 +461,7 @@ function searchCachedPlayers(
     }
   }
 
-  return results.sort((a, b) => b.score - a.score).slice(0, 15);
+  return results.sort((a, b) => b.score - a.score).slice(0, 60);
 }
 
 /**
@@ -596,10 +606,17 @@ export async function getEnrichedGameLogs(
     const allTeamGames = await getTeamSeasonGames(teamInfo.teamId);
     const gameMap = new Map(allTeamGames.map((g) => [g.id, g]));
 
-    // Step 4: Fetch box scores in parallel
-    const boxScoreResults = await Promise.allSettled(
-      gameIds.map((id) => getGameBoxScoreRaw(id))
-    );
+    // Step 4: Fetch box scores sequentially with 110ms throttle
+    const boxScoreResults: PromiseSettledResult<ApiSportsBoxScore[]>[] = [];
+    for (const id of gameIds) {
+      try {
+        const data = await getGameBoxScoreRaw(id);
+        boxScoreResults.push({ status: 'fulfilled', value: data });
+      } catch (err) {
+        boxScoreResults.push({ status: 'rejected', reason: err });
+      }
+      await new Promise(r => setTimeout(r, 110));
+    }
 
     // Step 5: Extract player entries and enrich with game context
     const enrichedLogs: EnrichedGameLog[] = [];

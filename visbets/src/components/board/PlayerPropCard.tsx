@@ -255,75 +255,7 @@ export const PlayerPropCard = React.memo(function PlayerPropCard({
           </View>
         </View>
 
-        {/* Bottom: OVER/UNDER badge + Confidence (or lock for free users) */}
-        <View style={styles.bottomRow}>
-          {isLocked ? (
-            <>
-              <View style={styles.lockedBadge}>
-                <Ionicons name="diamond-outline" size={12} color={colors.primary.main} />
-                <Text style={styles.lockedBadgeText}>Upgrade</Text>
-              </View>
-              <View style={styles.confidenceContainer}>
-                <View style={styles.confidenceBar}>
-                  <View style={[styles.confidenceFill, { width: '0%' }]} />
-                </View>
-                <Ionicons name="lock-closed" size={10} color={colors.text.muted} />
-              </View>
-            </>
-          ) : (
-            <>
-              {projection.recommendation && projection.recommendation !== 'AVOID' ? (
-                <View style={[
-                  styles.recoBadge,
-                  {
-                    backgroundColor: projection.recommendation === 'OVER'
-                      ? colors.semantic.success + '20'
-                      : colors.semantic.danger + '20',
-                    borderColor: projection.recommendation === 'OVER'
-                      ? colors.semantic.success + '80'
-                      : colors.semantic.danger + '80',
-                  }
-                ]}>
-                  <Text style={[
-                    styles.recoBadgeText,
-                    { color: projection.recommendation === 'OVER' ? colors.semantic.success : colors.semantic.danger }
-                  ]}>
-                    {projection.recommendation === 'OVER' ? '▲ OVER' : '▼ UNDER'}
-                  </Text>
-                  <Text style={[
-                    styles.recoEdgeText,
-                    { color: projection.recommendation === 'OVER' ? colors.semantic.success : colors.semantic.danger }
-                  ]}>
-                    {edgeSign}{edge.toFixed(1)}
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.avoidBadge}>
-                  <Text style={styles.avoidBadgeText}>— AVOID</Text>
-                </View>
-              )}
 
-              <View style={styles.confidenceContainer}>
-                <View style={styles.confidenceBar}>
-                  <View
-                    style={[
-                      styles.confidenceFill,
-                      {
-                        width: `${projection.confidence}%`,
-                        backgroundColor: projection.recommendation === 'OVER'
-                          ? colors.semantic.success
-                          : projection.recommendation === 'UNDER'
-                            ? colors.semantic.danger
-                            : colors.text.tertiary,
-                      },
-                    ]}
-                  />
-                </View>
-                <Text style={styles.confidenceText}>{Math.round(projection.confidence)}%</Text>
-              </View>
-            </>
-          )}
-        </View>
       </View>
       </Pressable>
     </Animated.View>

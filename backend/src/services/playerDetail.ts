@@ -38,6 +38,9 @@ const ANALYSIS_TO_PROJECTION: Partial<Record<StatKey, ProjectionStatKey>> = {
   rebounds: 'totReb',
   assists: 'assists',
   threes: 'tpm',
+  steals: 'steals',
+  blocks: 'blocks',
+  // pra is a composite stat — no single projection key; falls back to L5 average
 };
 
 // ── Response type ───────────────────────────────────────────────────────────
@@ -489,14 +492,18 @@ export async function computePlayerDetail(
     console.warn('[PlayerDetail] Next game lookup failed:', err.message);
   }
 
-  // ── 5b. Compute daysRest from most recent game ────────────────────────────
+  // ── 5b. Compute daysRest from most recent game (by date, not array position) ─
   let daysRest: number | undefined;
-  if (playedLogs.length > 0 && playedLogs[0].game_date) {
+  if (playedLogs.length > 0) {
     try {
-      const lastGameDate = new Date(playedLogs[0].game_date);
-      const today = new Date();
-      const diffMs = today.getTime() - lastGameDate.getTime();
-      daysRest = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+      const mostRecentDate = playedLogs
+        .filter((g) => g.game_date)
+        .map((g) => new Date(g.game_date).getTime())
+        .reduce((a, b) => Math.max(a, b), 0);
+      if (mostRecentDate > 0) {
+        const diffMs = Date.now() - mostRecentDate;
+        daysRest = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+      }
     } catch {
       // Non-fatal
     }
@@ -564,12 +571,18 @@ export async function computePlayerDetail(
 
   // ── 8. Compute derived fields ─────────────────────────────────────────────
 
-  // Hit rates — note: "season" is based on the same 20-game window (we only fetch 20 logs)
+  // Hit rates — "season" uses the full playedLogs window (up to 50 games from DB)
+  const seasonHitTotal = playedLogs.length;
+  const seasonHitCount = playedLogs.filter((g) => getStatValue(g, stat) >= resolvedLine).length;
   const hitRates: PlayerDetailResponse['hitRates'] = {
     last5: computeHitRate(analysis.last20Games, 5),
     last10: computeHitRate(analysis.last20Games, 10),
     last20: computeHitRate(analysis.last20Games, analysis.last20Games.length),
-    season: computeHitRate(analysis.last20Games, analysis.last20Games.length),
+    season: {
+      hits: seasonHitCount,
+      total: seasonHitTotal,
+      rate: seasonHitTotal > 0 ? Math.round((seasonHitCount / seasonHitTotal) * 1000) / 1000 : 0,
+    },
     trend: analysis.hitRate5 > analysis.hitRate10 + 0.10
       ? 'up'
       : analysis.hitRate5 < analysis.hitRate10 - 0.10
@@ -585,9 +598,13 @@ export async function computePlayerDetail(
     ? Math.round(((analysis.last5Average - seasonAvg) / seasonAvg) * 1000) / 10
     : 0;
 
+  // Derive momentum trend from the same L5/seasonAvg comparison used for multiplier
+  const momentumTrend: 'up' | 'down' | 'flat' =
+    multiplier >= 1.05 ? 'up' : multiplier <= 0.95 ? 'down' : 'flat';
+
   const momentum: PlayerDetailResponse['momentum'] = {
     multiplier,
-    trend: analysis.trendDirection,
+    trend: momentumTrend,
     recentVsAverage: recentVsAvg,
     consecutiveGames: analysis.currentStreak.count,
     description: getMomentumDescription(multiplier),
@@ -668,8 +685,9 @@ export async function computePlayerDetail(
   }
 
   // Radar metrics
+  // Scale: 50 = at season avg, 100 = 50%+ above season avg, 0 = 50%+ below
   const formScore = seasonAvg > 0
-    ? clamp(Math.round((analysis.last5Average / seasonAvg) * 50), 0, 100)
+    ? clamp(Math.round(50 + ((analysis.last5Average - seasonAvg) / seasonAvg) * 100), 0, 100)
     : 50;
   const consistencyScore = 100 - volatilityScore;
   const minutesStabilityScore = minutesRisk === 'Low' ? 80 : minutesRisk === 'Medium' ? 50 : 20;
@@ -772,7 +790,9 @@ export async function computePlayerDetail(
       rested: analysis.restedSplits,
     },
 
-    opponent: analysis.opponent,
+    opponent: nextGame
+      ? { name: nextGame.opponentName, id: 0 }
+      : analysis.opponent,
     vsOpponent,
 
     lineShopping: {

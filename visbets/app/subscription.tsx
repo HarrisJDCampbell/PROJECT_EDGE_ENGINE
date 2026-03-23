@@ -483,17 +483,11 @@ export default function SubscriptionScreen() {
 
         {/* Hero Section */}
         <Animated.View entering={FadeInDown.duration(400).delay(100)} style={styles.hero}>
-          <LinearGradient
-            colors={[colors.primary.main + '20', 'transparent']}
-            style={styles.heroGradient}
+          <Image
+            source={require('../assets/animations/visbets-logo.png')}
+            style={{ width: 80, height: 80, marginBottom: spacing.md }}
+            resizeMode="contain"
           />
-          <View style={styles.heroIconContainer}>
-            <Image
-              source={require('../assets/animations/visbets-logo.png')}
-              style={{ width: 48, height: 48 }}
-              resizeMode="contain"
-            />
-          </View>
           <Text style={styles.heroTitle}>Unlock Your Edge</Text>
           <Text style={styles.heroSubtitle}>
             Get advanced analytics and AI-powered insights
@@ -586,9 +580,7 @@ export default function SubscriptionScreen() {
         {packages.length === 0 && !isLoading && (
           <Animated.View entering={FadeIn.duration(200)} style={styles.retryContainer}>
             <Text style={styles.retryMessage}>
-              {isRevenueCatConfigured()
-                ? 'Subscription plans are being set up. Prices shown below are estimates — in-app purchase will be available soon.'
-                : 'In-app purchases are not yet available in this build.'}
+              In-app purchases are currently restricted in this build.
             </Text>
             <AnimatedButton
               onPress={() => initialize()}
@@ -812,12 +804,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statValue: {
-    fontSize: typography.fontSize['2xl'],
+    fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.bold,
     color: colors.primary.main,
   },
   statLabel: {
-    fontSize: typography.fontSize.xs,
+    fontSize: 10,
     color: colors.text.muted,
     marginTop: 2,
   },

@@ -252,7 +252,7 @@ async function fillSavedPickActuals(dateStr: string): Promise<void> {
 
     if (actualValue == null) continue;
 
-    const hit = pick.direction === 'over' ? actualValue > pick.line : actualValue < pick.line;
+    const hit = pick.direction === 'over' ? actualValue >= pick.line : actualValue <= pick.line;
 
     const { error } = await supabaseAdmin
       .from('saved_picks')

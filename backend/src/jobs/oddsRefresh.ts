@@ -381,7 +381,8 @@ async function preComputeProjections(
       continue;
     }
 
-    const gameLogs = matchedLogs.slice(0, 15).map(gameLogToStats);
+    // Slice to 60 recent matching game logs (was 15)
+    const gameLogs = matchedLogs.slice(0, 60).map(gameLogToStats);
     const ctx = playerContext.get(canonicalName);
     const opponentDefFactor = ctx
       ? getOpponentDefFactor(ctx.opponent, statKey)

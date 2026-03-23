@@ -180,8 +180,8 @@ export function buildEnhancedProjection(
 
   if (allValues.length < 3) return null; // need at least 3 meaningful games to project
 
-  // Cap at last 15 meaningful games for the model
-  const sampleSize = Math.min(allValues.length, 15);
+  // Cap at last 60 meaningful games for the model
+  const sampleSize = Math.min(allValues.length, 60);
   const recentValues = allValues.slice(0, sampleSize);
 
   // --- 2. Exponential decay weighted average ---

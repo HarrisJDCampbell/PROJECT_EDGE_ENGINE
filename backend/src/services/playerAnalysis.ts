@@ -156,34 +156,36 @@ export async function computePlayerAnalysis(
     (a, b) => new Date(a.game_date).getTime() - new Date(b.game_date).getTime()
   );
 
-  const last20Games = chronological.map((g) => ({
+  const last20Games = chronological.slice(-20).map((g) => ({
     game_date: g.game_date,
     opponent_name: g.opponent_name,
     was_home_game: g.was_home_game,
     game_result: g.game_result,
     stat_value: getStatValue(g, stat),
-    hit: getStatValue(g, stat) > line,
+    hit: getStatValue(g, stat) >= line,
     minutes_played: parseMinutes(g.min),
   }));
 
   // ── Hit rates (most-recent first order for L5/L10) ───────────────────────
-  const recentFirst = [...played]; // already sorted newest-first from getEnrichedGameLogs
+  const recentFirst = [...played].sort(
+    (a, b) => new Date(b.game_date).getTime() - new Date(a.game_date).getTime()
+  );
 
   const last5 = recentFirst.slice(0, 5);
   const last10 = recentFirst.slice(0, 10);
 
   const hitRate5 = last5.length
-    ? last5.filter((g) => getStatValue(g, stat) > line).length / last5.length
+    ? last5.filter((g) => getStatValue(g, stat) >= line).length / last5.length
     : 0;
   const hitRate10 = last10.length
-    ? last10.filter((g) => getStatValue(g, stat) > line).length / last10.length
+    ? last10.filter((g) => getStatValue(g, stat) >= line).length / last10.length
     : 0;
 
   // ── Current streak ───────────────────────────────────────────────────────
-  let streakType: 'hit' | 'miss' = recentFirst[0] && getStatValue(recentFirst[0], stat) > line ? 'hit' : 'miss';
+  let streakType: 'hit' | 'miss' = recentFirst[0] && getStatValue(recentFirst[0], stat) >= line ? 'hit' : 'miss';
   let streakCount = 0;
   for (const g of recentFirst) {
-    const hit = getStatValue(g, stat) > line;
+    const hit = getStatValue(g, stat) >= line;
     if ((hit && streakType === 'hit') || (!hit && streakType === 'miss')) {
       streakCount++;
     } else {
@@ -192,7 +194,7 @@ export async function computePlayerAnalysis(
   }
 
   // ── Trajectory (oldest → newest) ─────────────────────────────────────────
-  const last20Values = chronological.map((g) => ({
+  const last20Values = chronological.slice(-20).map((g) => ({
     game_date: g.game_date,
     value: getStatValue(g, stat),
     minutes: parseMinutes(g.min),
@@ -247,7 +249,7 @@ export async function computePlayerAnalysis(
   function splitStats(games: EnrichedGameLog[]) {
     if (games.length === 0) return { games: 0, avg: 0, hitRate: 0 };
     const vals = games.map((g) => getStatValue(g, stat));
-    const hits = vals.filter((v) => v > line).length;
+    const hits = vals.filter((v) => v >= line).length;
     return {
       games: games.length,
       avg: Math.round(mean(vals) * 10) / 10,

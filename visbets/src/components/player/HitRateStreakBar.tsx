@@ -69,7 +69,7 @@ export function HitRateStreakBar({
   // Most-recent last = left-to-right oldest→newest
   const displayed = [...games].slice(-10);  // take last 10
   const visibleGames = displayed.slice(-visibleCount);
-  const lockedGames = isStarter ? [] : displayed.slice(0, displayed.length - 5);
+  const lockedGames = isStarter ? [] : displayed.slice(0, Math.max(0, displayed.length - visibleCount));
 
   const hitRatePct = Math.round(hitRate * 100);
   const hitRateColor =
@@ -110,10 +110,13 @@ export function HitRateStreakBar({
             </Text>
           </View>
         </View>
-        <View style={styles.streakBadge}>
-          <Text style={styles.streakEmoji}>{streakEmoji}</Text>
-          <Text style={styles.streakText}>{streakLabel}</Text>
-        </View>
+
+        {currentStreak.count >= 2 && (
+          <View style={styles.streakBadge}>
+            <Text style={styles.streakEmoji}>{streakEmoji}</Text>
+            <Text style={styles.streakText}>{streakLabel}</Text>
+          </View>
+        )}
       </View>
 
       {/* Bar */}

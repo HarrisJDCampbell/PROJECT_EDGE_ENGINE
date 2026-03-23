@@ -130,9 +130,9 @@ export function HitRateTab({ data, line }: HitRateTabProps) {
       <View style={styles.insightContainer}>
         <Text style={styles.insightText}>
           {data.last5.percentage >= 60
-            ? `Strong recent performance - hitting OVER ${data.last5.percentage}% of the time in last 5 games.`
+            ? `Strong recent performance - exceeding the line ${data.last5.percentage}% of the time in last 5 games.`
             : data.last5.percentage <= 40
-            ? `Struggling recently - hitting OVER only ${data.last5.percentage}% in last 5 games.`
+            ? `Struggling recently - exceeding the line only ${data.last5.percentage}% in last 5 games.`
             : `Mixed results - ${data.last5.percentage}% hit rate in recent games.`}
         </Text>
       </View>

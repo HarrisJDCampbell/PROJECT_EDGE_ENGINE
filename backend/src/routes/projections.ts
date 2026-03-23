@@ -34,7 +34,7 @@ import { getNBAOdds, getNBAPlayerProps } from '../services/oddsApi';
 import { buildEnhancedProjection, extractStatValue, ODDS_API_MARKET_MAP, type StatKey } from '../services/projections';
 import { getOpponentDefFactor } from '../services/teamDefense';
 import cache, { getOrFetch, TTL } from '../cache/gameCache';
-import { resolveNBAPersonId, headshotUrl } from '../services/nbaPlayers';
+import { resolveNBAPersonId, headshotUrl, formatPlayerName } from '../services/nbaPlayers';
 import logger from '../lib/logger';
 const router = Router();
 
@@ -259,7 +259,7 @@ async function buildProjectionsFromRawProps(
     const nbaPersonId = await resolveNBAPersonId(raw.playerName);
     results.push({
       id: `${raw.playerName}:${raw.market}`,
-      playerName: raw.playerName,
+      playerName: formatPlayerName(raw.playerName),
       playerApiSportsId: playerId,
       teamName: playerTeamName,
       opponent: opponentName,
@@ -342,8 +342,8 @@ async function runOddsBasedPipeline(preferredBook?: string): Promise<ProjectedPr
       if (!apiGame) return;
 
       const [homeIds, awayIds] = await Promise.all([
-        getTeamRecentCompletedGameIds(apiGame.teams.home.id, 15),
-        getTeamRecentCompletedGameIds(apiGame.teams.away.id, 15),
+        getTeamRecentCompletedGameIds(apiGame.teams.home.id, 60),
+        getTeamRecentCompletedGameIds(apiGame.teams.away.id, 60),
       ]);
       // Merge and deduplicate, keeping newest-first order
       const merged = [...new Set([...homeIds, ...awayIds])].sort((a, b) => b - a);

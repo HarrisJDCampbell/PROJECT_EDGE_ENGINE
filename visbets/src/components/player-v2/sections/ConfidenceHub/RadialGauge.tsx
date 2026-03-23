@@ -44,20 +44,7 @@ function getConfidenceLabel(confidence: number): string {
   return 'VERY LOW';
 }
 
-function StreakBadge({ streak }: { streak?: StreakData }) {
-  if (!streak || streak.type === 'neutral') return null;
 
-  const isHot = streak.type === 'hot';
-  const bgColor = isHot ? colors.semantic.success : colors.semantic.danger;
-  const icon = isHot ? '🔥' : '❄️';
-
-  return (
-    <View style={[styles.streakBadge, { backgroundColor: bgColor + '20', borderColor: bgColor }]}>
-      <Text style={styles.streakIcon}>{icon}</Text>
-      <Text style={[styles.streakText, { color: bgColor }]}>{streak.description}</Text>
-    </View>
-  );
-}
 
 export function RadialGauge({ confidence, projection, line, edge, streak }: RadialGaugeProps) {
   const animatedProgress = useSharedValue(0);
@@ -141,8 +128,7 @@ export function RadialGauge({ confidence, projection, line, edge, streak }: Radi
           </Animated.View>
         </View>
 
-        {/* Streak badge below gauge */}
-        <StreakBadge streak={streak} />
+        {/* Streak badge removed per design update */}
       </View>
 
       {/* Projection metrics */}
