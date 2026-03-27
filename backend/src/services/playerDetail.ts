@@ -30,6 +30,9 @@ import { getNBAOdds, getNBAPlayerProps } from './oddsApi';
 import { getOpponentDefFactor } from './teamDefense';
 import { resolveNBAPersonId, headshotUrl } from './nbaPlayers';
 import { getTeamAbbreviation } from './teamAbbreviations';
+import { supabaseAdmin } from '../lib/supabaseAdmin';
+import { redisGetJSON } from '../lib/redis';
+import { REDIS_KEYS } from '../jobs/oddsRefresh';
 
 // ── Stat key mapping: analysis keys → projection keys ───────────────────────
 
@@ -447,6 +450,96 @@ export async function computePlayerDetail(
 
   // ── 4. Compute analysis (existing service) ────────────────────────────────
   const analysis = await computePlayerAnalysis(playerId, stat, resolvedLine, resolvedBookmaker);
+
+  // ── 4b. Fallback line shopping from pre-computed bookLines ────────────────
+  // If live odds returned no books (quota low, no lines posted, etc.),
+  // pull the per-book lines from the pre-computed props in Redis/Supabase.
+  if (analysis.allBooks.length === 0) {
+    try {
+      const STAT_KEY_TO_DB: Record<string, string> = {
+        points: 'points', rebounds: 'totReb', assists: 'assists',
+        threes: 'tpm', steals: 'steals', blocks: 'blocks',
+      };
+      const dbStat = STAT_KEY_TO_DB[stat] ?? stat;
+      const today = new Date().toISOString().split('T')[0];
+
+      // Try Redis first (bookLines is camelCase there)
+      let bookLines: Record<string, number | null> | null = null;
+      const redisRows = await redisGetJSON<Record<string, any>[]>(REDIS_KEYS.PROJECTIONS);
+      if (redisRows) {
+        const match = redisRows.find(
+          (r) => r.player_name?.toLowerCase() === fullName.toLowerCase() && r.stat === dbStat
+        );
+        if (match?.bookLines && Object.keys(match.bookLines).length > 0) {
+          bookLines = match.bookLines;
+        }
+      }
+
+      // Fallback to Supabase
+      if (!bookLines) {
+        const { data: dbRow } = await supabaseAdmin
+          .from('pre_computed_props')
+          .select('book_lines')
+          .eq('game_date', today)
+          .ilike('player_name', fullName)
+          .eq('stat', dbStat)
+          .maybeSingle();
+        if (dbRow?.book_lines && Object.keys(dbRow.book_lines).length > 0) {
+          bookLines = dbRow.book_lines;
+        }
+      }
+
+      if (bookLines) {
+        const bookTitles: Record<string, string> = {
+          fanduel: 'FanDuel', draftkings: 'DraftKings', prizepicks: 'PrizePicks',
+          underdog: 'Underdog', betmgm: 'BetMGM', caesars: 'Caesars', espnbet: 'ESPN BET',
+        };
+        const BOOK_ORDER = ['fanduel', 'draftkings', 'betmgm', 'caesars', 'espnbet', 'prizepicks', 'underdog'];
+        const entries = BOOK_ORDER
+          .filter((k) => bookLines![k] != null)
+          .map((k) => ({ key: k, line: bookLines![k]! }));
+
+        // Also include any keys not in BOOK_ORDER
+        for (const [k, v] of Object.entries(bookLines)) {
+          if (v != null && !entries.find((e) => e.key === k)) {
+            entries.push({ key: k, line: v });
+          }
+        }
+
+        if (entries.length > 0) {
+          const allLines = entries.map((e) => e.line);
+          const maxLine = Math.max(...allLines);
+          const minLine = Math.min(...allLines);
+          const bestOverEntry = entries.reduce((best, e) => e.line > best.line ? e : best);
+          const bestUnderEntry = entries.reduce((best, e) => e.line < best.line ? e : best);
+
+          analysis.allBooks = entries.map((e) => ({
+            bookmaker_key: e.key,
+            bookmaker_title: bookTitles[e.key] ?? e.key,
+            over_price: 0,
+            under_price: 0,
+            line: e.line,
+            is_best_over: e.key === bestOverEntry.key,
+            is_best_under: e.key === bestUnderEntry.key,
+          }));
+          analysis.bestOverBook = {
+            bookmaker_title: bookTitles[bestOverEntry.key] ?? bestOverEntry.key,
+            line: bestOverEntry.line,
+            price: 0,
+          };
+          analysis.bestUnderBook = {
+            bookmaker_title: bookTitles[bestUnderEntry.key] ?? bestUnderEntry.key,
+            line: bestUnderEntry.line,
+            price: 0,
+          };
+          analysis.lineSpread = Math.round((maxLine - minLine) * 10) / 10;
+          console.log(`[PlayerDetail] Used pre-computed bookLines for ${fullName} line shopping (${entries.length} books)`);
+        }
+      }
+    } catch (err: any) {
+      console.warn('[PlayerDetail] bookLines fallback failed:', err.message);
+    }
+  }
 
   // ── 5. Compute projection (if stat maps to projection engine) ─────────────
   const projStatKey = ANALYSIS_TO_PROJECTION[stat];

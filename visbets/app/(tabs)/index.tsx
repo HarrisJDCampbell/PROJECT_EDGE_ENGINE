@@ -166,50 +166,35 @@ export default function BoardScreen() {
     });
 
     return items.map((p) => {
-      const hasBookLines = p.bookLines && Object.keys(p.bookLines).length > 0;
+      const bookLines = p.bookLines && Object.keys(p.bookLines).length > 0 ? p.bookLines : null;
 
-      // ── Left side ──
+      // ── Left side: user's preferred sportsbook ──
       let left: { line: number | undefined; label: string };
-      if (hasBookLines) {
-        const fromBook = p.bookLines![leftBook];
-        left = fromBook != null
-          ? { line: fromBook, label: leftBookLabel }
-          : resolveBookLine(p.bookLines, leftBook, leftBookLabel);
+      if (bookLines) {
+        left = resolveBookLine(bookLines, leftBook, leftBookLabel);
       } else {
-        // No bookLines (Supabase fallback) — use p.line with the source bookmaker label
-        left = { line: p.line ?? undefined, label: leftBookLabel };
-      }
-      // Final fallback: if bookLines had no match, use p.line
-      if (left.line == null && p.line != null) {
-        left = { line: p.line, label: p.bookmaker ? getSportsbookShortLabel(p.bookmaker) : leftBookLabel };
-      }
-
-      // ── Right side ──
-      let right: { line: number | undefined; label: string };
-      if (hasBookLines) {
-        right = resolveBookLine(p.bookLines, rightBook, rightBookLabel, leftBook);
-        // Secondary fallback: any book that isn't the left book
-        if (right.line == null) {
-          for (const [bookKey, bookLine] of Object.entries(p.bookLines!)) {
-            if (bookLine != null && bookKey !== leftBook) {
-              right = { line: bookLine, label: getSportsbookShortLabel(bookKey) };
-              break;
-            }
-          }
-        }
-      } else {
-        // No bookLines — use p.line but label it with the actual source book,
-        // NOT the same label as left (avoid "PP | PP" when both are from same source)
+        // No per-book data — use the prop's source bookmaker line
         const sourceBook = p.bookmaker ?? 'fanduel';
-        right = {
-          line: p.line ?? undefined,
-          label: sourceBook === leftBook ? rightBookLabel : getSportsbookShortLabel(sourceBook),
-        };
+        left = { line: p.line ?? undefined, label: getSportsbookShortLabel(sourceBook) };
       }
 
-      // Last resort: mirror the left value but keep the right label distinct
-      if (right.line == null && left.line != null) {
-        right = { line: left.line, label: rightBookLabel };
+      // ── Right side: user's second sportsbook (must differ from left) ──
+      let right: { line: number | undefined; label: string };
+      if (bookLines) {
+        // Find which book key the left side actually resolved to, so we exclude it
+        const leftResolvedBook = (() => {
+          // Check if the preferred book had data
+          if (bookLines[leftBook] != null) return leftBook;
+          // Otherwise find which fallback book was used
+          for (const [k, v] of Object.entries(bookLines)) {
+            if (v === left.line && v != null) return k;
+          }
+          return leftBook;
+        })();
+        right = resolveBookLine(bookLines, rightBook, rightBookLabel, leftResolvedBook);
+      } else {
+        // No per-book data — show dash for the second book
+        right = { line: undefined, label: rightBookLabel };
       }
 
       return {
