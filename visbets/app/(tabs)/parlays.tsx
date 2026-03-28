@@ -95,51 +95,101 @@ function computeAmericanOdds(props: ProjectedProp[]): string {
   return `+${Math.round(((1 - combinedProb) / combinedProb) * 100)}`;
 }
 
-// Generate curated parlays from real backend projections
+/**
+ * Generate curated parlays from real backend projections.
+ *
+ * Strategy:
+ * - Sort all props by visbetsScore (best first)
+ * - Generate 7 distinct parlay types with different risk/reward profiles
+ * - Use adaptive thresholds based on available data (not fixed cutoffs)
+ * - Ensure unique players per parlay (no duplicate player legs)
+ * - Diversify across stat types when possible
+ */
 function generateCuratedParlays(projections: ProjectedProp[]): CuratedParlay[] {
-  if (!projections || projections.length < 4) return [];
+  if (!projections || projections.length < 2) return [];
 
   const sorted = byUniquePlayer([...projections].sort((a, b) => b.visbetsScore - a.visbetsScore));
-  const high = sorted.filter(p => p.visbetsScore >= 70);
-  const mid = sorted.filter(p => p.visbetsScore >= 55 && p.visbetsScore < 70);
   const parlays: CuratedParlay[] = [];
-
   const avg = (legs: ParlayLeg[]) => Math.round(legs.reduce((s, l) => s + l.confidence, 0) / legs.length);
 
-  if (high.length >= 2) {
-    const srcProps = high.slice(0, 2);
-    const legs = srcProps.map(toLeg);
-    parlays.push({ id: '2-leg-safe', name: 'Safe Double', description: 'Highest confidence 2-leg parlay', legs, confidence: avg(legs), estimatedOdds: computeAmericanOdds(srcProps), riskLevel: 'Low' });
-  }
+  // Adaptive thresholds: use top percentiles instead of fixed score cutoffs
+  const topTier = sorted.slice(0, Math.max(2, Math.floor(sorted.length * 0.2)));   // top 20%
+  const midTier = sorted.slice(topTier.length, Math.max(4, Math.floor(sorted.length * 0.5))); // next 30%
 
-  if (high.length >= 2 && mid.length >= 1) {
-    const highNames = new Set(high.slice(0, 2).map(p => p.playerName));
-    const midUnique = mid.filter(p => !highNames.has(p.playerName));
-    if (midUnique.length >= 1) {
-      const srcProps = [...high.slice(0, 2), midUnique[0]];
+  // Helper: pick N unique players from a pool, excluding already-used names
+  const pickUnique = (pool: ProjectedProp[], n: number, exclude?: Set<string>): ProjectedProp[] => {
+    const result: ProjectedProp[] = [];
+    const used = new Set(exclude ?? []);
+    for (const p of pool) {
+      if (used.has(p.playerName)) continue;
+      result.push(p);
+      used.add(p.playerName);
+      if (result.length >= n) break;
+    }
+    return result;
+  };
+
+  // 1. Safe Double — 2 highest confidence picks
+  if (topTier.length >= 2) {
+    const srcProps = pickUnique(topTier, 2);
+    if (srcProps.length >= 2) {
       const legs = srcProps.map(toLeg);
-      parlays.push({ id: '3-leg-balanced', name: 'Balanced Triple', description: 'Strong value 3-leg parlay', legs, confidence: avg(legs), estimatedOdds: computeAmericanOdds(srcProps), riskLevel: 'Medium' });
+      parlays.push({ id: '2-leg-safe', name: 'Safe Double', description: 'Two highest-confidence picks', legs, confidence: avg(legs), estimatedOdds: computeAmericanOdds(srcProps), riskLevel: 'Low' });
     }
   }
 
-  if (sorted.length >= 4) {
-    const srcProps = sorted.slice(0, 4);
-    const legs = srcProps.map(toLeg);
-    parlays.push({ id: '4-leg-value', name: 'Value Quad', description: 'High value 4-leg parlay', legs, confidence: avg(legs), estimatedOdds: computeAmericanOdds(srcProps), riskLevel: 'Medium' });
+  // 2. Balanced Triple — 2 top + 1 mid tier
+  if (topTier.length >= 2 && midTier.length >= 1) {
+    const topPicks = pickUnique(topTier, 2);
+    const usedNames = new Set(topPicks.map(p => p.playerName));
+    const midPick = pickUnique(midTier, 1, usedNames);
+    if (topPicks.length >= 2 && midPick.length >= 1) {
+      const srcProps = [...topPicks, ...midPick];
+      const legs = srcProps.map(toLeg);
+      parlays.push({ id: '3-leg-balanced', name: 'Balanced Triple', description: 'Strong core with value add', legs, confidence: avg(legs), estimatedOdds: computeAmericanOdds(srcProps), riskLevel: 'Medium' });
+    }
   }
 
+  // 3. Value Quad — top 4 overall
+  if (sorted.length >= 4) {
+    const srcProps = pickUnique(sorted, 4);
+    if (srcProps.length >= 4) {
+      const legs = srcProps.map(toLeg);
+      parlays.push({ id: '4-leg-value', name: 'Value Quad', description: 'Best 4 picks of the night', legs, confidence: avg(legs), estimatedOdds: computeAmericanOdds(srcProps), riskLevel: 'Medium' });
+    }
+  }
+
+  // 4. Scorers Special — points-only picks
   const pts = byUniquePlayer(sorted.filter(p => p.statDisplay === 'PTS'));
   if (pts.length >= 3) {
     const srcProps = pts.slice(0, 3);
     const legs = srcProps.map(toLeg);
-    parlays.push({ id: '3-leg-points', name: 'Scorers Special', description: 'Points-focused 3-leg parlay', legs, confidence: avg(legs), estimatedOdds: computeAmericanOdds(srcProps), riskLevel: 'Medium' });
+    parlays.push({ id: '3-leg-points', name: 'Scorers Special', description: 'Points props from top performers', legs, confidence: avg(legs), estimatedOdds: computeAmericanOdds(srcProps), riskLevel: 'Medium' });
   }
 
-  const edgeProps = byUniquePlayer([...projections].filter(p => p.edge > 1.5).sort((a, b) => Math.abs(b.edge) - Math.abs(a.edge)));
-  if (edgeProps.length >= 2) {
-    const srcProps = edgeProps.slice(0, 2);
+  // 5. Boards & Dimes — rebounds + assists mix
+  const rebAst = byUniquePlayer(sorted.filter(p => p.statDisplay === 'REB' || p.statDisplay === 'AST'));
+  if (rebAst.length >= 2) {
+    const srcProps = rebAst.slice(0, Math.min(3, rebAst.length));
     const legs = srcProps.map(toLeg);
-    parlays.push({ id: '2-leg-edge', name: 'Edge Hunter', description: 'Highest edge 2-leg parlay', legs, confidence: avg(legs), estimatedOdds: computeAmericanOdds(srcProps), riskLevel: 'High' });
+    parlays.push({ id: 'reb-ast-mix', name: 'Boards & Dimes', description: 'Rebounds and assists combo', legs, confidence: avg(legs), estimatedOdds: computeAmericanOdds(srcProps), riskLevel: 'Medium' });
+  }
+
+  // 6. Edge Hunter — highest model edge (biggest disagreement with the books)
+  const edgeProps = byUniquePlayer([...projections].filter(p => Math.abs(p.edge) > 0).sort((a, b) => Math.abs(b.edge) - Math.abs(a.edge)));
+  if (edgeProps.length >= 2) {
+    const srcProps = edgeProps.slice(0, Math.min(3, edgeProps.length));
+    const legs = srcProps.map(toLeg);
+    parlays.push({ id: '3-leg-edge', name: 'Edge Hunter', description: 'Biggest model edge plays', legs, confidence: avg(legs), estimatedOdds: computeAmericanOdds(srcProps), riskLevel: 'High' });
+  }
+
+  // 7. Long Shot 5-Leg — high risk, high reward
+  if (sorted.length >= 5) {
+    const srcProps = pickUnique(sorted, 5);
+    if (srcProps.length >= 5) {
+      const legs = srcProps.map(toLeg);
+      parlays.push({ id: '5-leg-longshot', name: 'Long Shot', description: '5-leg high-reward parlay', legs, confidence: avg(legs), estimatedOdds: computeAmericanOdds(srcProps), riskLevel: 'High' });
+    }
   }
 
   return parlays;

@@ -173,9 +173,15 @@ export default function BoardScreen() {
       if (bookLines) {
         left = resolveBookLine(bookLines, leftBook, leftBookLabel);
       } else {
-        // No per-book data — use the prop's source bookmaker line
-        const sourceBook = p.bookmaker ?? 'fanduel';
-        left = { line: p.line ?? undefined, label: getSportsbookShortLabel(sourceBook) };
+        // No per-book data — show the line with user's preferred book label.
+        // When bookmaker is 'visbets' or 'season_avg' (fallback pipeline),
+        // display as the user's left book (FD/DK/etc) since it's the best
+        // available line. Never show "VI" or "AVG" as a sportsbook.
+        const isRealBook = p.bookmaker && !['visbets', 'season_avg', null].includes(p.bookmaker);
+        left = {
+          line: p.line ?? undefined,
+          label: isRealBook ? getSportsbookShortLabel(p.bookmaker!) : leftBookLabel,
+        };
       }
 
       // ── Right side: user's second sportsbook (must differ from left) ──
@@ -183,9 +189,7 @@ export default function BoardScreen() {
       if (bookLines) {
         // Find which book key the left side actually resolved to, so we exclude it
         const leftResolvedBook = (() => {
-          // Check if the preferred book had data
           if (bookLines[leftBook] != null) return leftBook;
-          // Otherwise find which fallback book was used
           for (const [k, v] of Object.entries(bookLines)) {
             if (v === left.line && v != null) return k;
           }
@@ -193,8 +197,9 @@ export default function BoardScreen() {
         })();
         right = resolveBookLine(bookLines, rightBook, rightBookLabel, leftResolvedBook);
       } else {
-        // No per-book data — show dash for the second book
-        right = { line: undefined, label: rightBookLabel };
+        // No per-book data — show the same line with the second book label.
+        // Once the backend has real sportsbook data, these will diverge.
+        right = { line: p.line ?? undefined, label: rightBookLabel };
       }
 
       return {

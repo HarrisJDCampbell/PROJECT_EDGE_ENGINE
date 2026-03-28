@@ -10,6 +10,7 @@ export function getSportsbookShortLabel(id: string): string {
     prizepicks: 'PP', draftkings: 'DK', underdog: 'UD',
     fanduel: 'FD', betmgm: 'MGM', caesars: 'CZR',
     pointsbet: 'PB', betrivers: 'BR', espnbet: 'ESPN', hardrock: 'HR',
+    visbets: 'VIS', season_avg: 'AVG',
   };
   return labels[id] ?? id.substring(0, 2).toUpperCase();
 }
