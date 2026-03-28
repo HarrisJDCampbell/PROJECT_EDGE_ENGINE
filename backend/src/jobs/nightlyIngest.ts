@@ -293,11 +293,11 @@ async function storeSchedule(dateStr: string): Promise<void> {
   }
 }
 
-// ── Step 5: Prune old game logs (60-day rolling window) ──────────────────────
+// ── Step 5: Prune old game logs (180-day rolling window) ─────────────────────
 
 async function pruneOldLogs(): Promise<void> {
   const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - 60);
+  cutoff.setDate(cutoff.getDate() - 180);
   const cutoffStr = cutoff.toISOString().split('T')[0];
 
   const { error } = await supabaseAdmin
@@ -308,7 +308,43 @@ async function pruneOldLogs(): Promise<void> {
   if (error) {
     logger.warn({ err: error.message }, '[Ingest] Prune failed');
   } else {
-    logger.info({ cutoff: cutoffStr }, '[Ingest] Old game logs pruned');
+    logger.info({ cutoff: cutoffStr }, '[Ingest] Old game logs pruned (180-day window)');
+  }
+}
+
+// ── Step 6: Rolling 7-day backfill to fill gaps from missed days ─────────────
+
+async function rollingBackfill(): Promise<void> {
+  let totalRows = 0;
+  for (let daysBack = 7; daysBack >= 2; daysBack--) {
+    const d = new Date();
+    d.setDate(d.getDate() - daysBack);
+    const dateStr = d.toISOString().split('T')[0];
+
+    // Check if we already have data for this date
+    const { count } = await supabaseAdmin
+      .from('game_logs')
+      .select('*', { count: 'exact', head: true })
+      .eq('game_date', dateStr);
+
+    if ((count ?? 0) > 0) continue; // already have data for this date
+
+    try {
+      const rows = await ingestBoxScores(dateStr);
+      totalRows += rows;
+      if (rows > 0) {
+        logger.info({ date: dateStr, rows }, '[Ingest] Gap-fill: date ingested');
+      }
+    } catch (err: any) {
+      logger.warn({ date: dateStr, err: err.message }, '[Ingest] Gap-fill: date failed');
+    }
+
+    // Rate-limit: 1 second between dates
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+
+  if (totalRows > 0) {
+    logger.info({ totalRows }, '[Ingest] Rolling 7-day gap-fill complete');
   }
 }
 
@@ -327,6 +363,9 @@ export async function runNightlyIngest(): Promise<void> {
     await fillProjectionActuals(yd);
     await fillSavedPickActuals(yd);
     await storeSchedule(td);
+
+    // Fill any gaps from the last 7 days (missed days from API outages, downtime, etc.)
+    await rollingBackfill();
 
     // Only prune old logs if today's ingest actually added data.
     // If the ingest returned 0 rows (API down, key expired, no games),

@@ -167,11 +167,15 @@ app.listen(PORT, () => {
   // Start the cron scheduler (nightly ingest + odds refresh)
   startScheduler();
 
-  // Warm schedule + odds caches on startup so first user request is fast.
+  // Warm player maps from DB first (no API calls), then schedule + odds caches.
   // Fire-and-forget — failure is non-fatal.
   setTimeout(async () => {
     try {
-      const { getGamesForDate } = await import('./services/apiSports');
+      // Step 1: Load player name/team maps from game_logs (instant, no API calls)
+      const { warmPlayerMapsFromDB, getGamesForDate } = await import('./services/apiSports');
+      await warmPlayerMapsFromDB();
+
+      // Step 2: Warm schedule + odds caches
       const { getNBAOdds } = await import('./services/oddsApi');
       const today = new Date().toISOString().split('T')[0];
       const [games, odds] = await Promise.allSettled([
@@ -188,18 +192,39 @@ app.listen(PORT, () => {
     }
   }, 2000);
 
-  // Auto-backfill if game_logs table is sparse — delayed 90s to avoid
-  // interfering with Railway health check (60s timeout)
+  // Auto-backfill on startup: ensure game_logs has deep history.
+  // Always backfill 90 days on first deploy, then check gap from last ingested date.
+  // Delayed 90s to avoid interfering with Railway health check (60s timeout).
   setTimeout(async () => {
     try {
       const { supabaseAdmin } = await import('./lib/supabaseAdmin');
-      const { count } = await supabaseAdmin
-        .from('game_logs')
-        .select('*', { count: 'exact', head: true });
-      if ((count ?? 0) < 500) {
-        logger.info({ count }, '[Startup] game_logs sparse — triggering 30-day backfill');
+
+      // Check how many rows we have and find the most recent game date
+      const [countResult, latestResult] = await Promise.all([
+        supabaseAdmin.from('game_logs').select('*', { count: 'exact', head: true }),
+        supabaseAdmin.from('game_logs').select('game_date').order('game_date', { ascending: false }).limit(1),
+      ]);
+
+      const rowCount = countResult.count ?? 0;
+      const latestDate = latestResult.data?.[0]?.game_date ?? null;
+
+      if (rowCount < 2000) {
+        // Sparse DB — do a full 90-day backfill to get deep history
+        logger.info({ rowCount }, '[Startup] game_logs needs history — triggering 90-day backfill');
         const { runBackfill } = await import('./jobs/backfill');
-        runBackfill(30).catch((e) => logger.warn({ err: e.message }, '[Startup] Auto-backfill failed'));
+        runBackfill(90).catch((e) => logger.warn({ err: e.message }, '[Startup] Auto-backfill failed'));
+      } else if (latestDate) {
+        // DB has data — check if there's a gap (e.g., server was down for days)
+        const latestMs = new Date(latestDate).getTime();
+        const yesterdayMs = Date.now() - 86400000;
+        const gapDays = Math.floor((yesterdayMs - latestMs) / 86400000);
+        if (gapDays > 1) {
+          logger.info({ gapDays, latestDate }, '[Startup] game_logs has gap — backfilling');
+          const { runBackfill } = await import('./jobs/backfill');
+          runBackfill(gapDays + 1).catch((e) => logger.warn({ err: e.message }, '[Startup] Gap-fill failed'));
+        } else {
+          logger.info({ rowCount, latestDate }, '[Startup] game_logs is up to date');
+        }
       }
     } catch (err: any) {
       logger.warn({ err: err.message }, '[Startup] Auto-backfill check failed');

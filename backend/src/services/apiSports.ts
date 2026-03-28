@@ -341,6 +341,49 @@ const playerTeamMap = new Map<number, { teamId: number; teamName: string }>();
 const playerNameMap = new Map<number, string>(); // playerId → "Lastname Firstname" raw name
 
 /**
+ * Warm player name/team maps from the game_logs table in Supabase.
+ * This avoids cold-scanning box scores after a server restart.
+ * Call once on startup — takes ~1 second for thousands of rows.
+ */
+export async function warmPlayerMapsFromDB(): Promise<void> {
+  if (playerNameMap.size > 0) return; // already populated
+
+  try {
+    // Fetch distinct player_id, player_name, team_id, team_name from recent game_logs
+    // Lazy import to avoid circular dependency — supabaseAdmin is also imported later in this file
+    const { supabaseAdmin: sb } = await import('../lib/supabaseAdmin');
+    const { data, error } = await sb
+      .from('game_logs')
+      .select('player_id, player_name, team_id, team_name')
+      .order('game_date', { ascending: false })
+      .limit(5000);
+
+    if (error || !data || data.length === 0) {
+      console.warn('[API-Sports] warmPlayerMapsFromDB: no data or error:', error?.message);
+      return;
+    }
+
+    // Populate maps — most recent entry wins (first in descending order)
+    for (const row of data) {
+      if (!row.player_id || row.player_id <= 0) continue;
+      if (!playerNameMap.has(row.player_id)) {
+        playerNameMap.set(row.player_id, row.player_name);
+      }
+      if (!playerTeamMap.has(row.player_id) && row.team_id) {
+        playerTeamMap.set(row.player_id, {
+          teamId: row.team_id,
+          teamName: row.team_name ?? '',
+        });
+      }
+    }
+
+    console.log(`[API-Sports] Warmed player maps from DB: ${playerNameMap.size} players, ${playerTeamMap.size} teams`);
+  } catch (err: any) {
+    console.warn('[API-Sports] warmPlayerMapsFromDB failed:', err.message);
+  }
+}
+
+/**
  * Discover which team a player belongs to by scanning recent box scores.
  * Caches all discovered player→team mappings AND player names to amortise cost.
  */
