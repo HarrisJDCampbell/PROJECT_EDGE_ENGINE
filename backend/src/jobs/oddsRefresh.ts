@@ -37,8 +37,8 @@ export const REDIS_KEYS = {
   COMPUTED_AT:   'projections:computed_at',
 };
 
-const REDIS_TTL_ODDS = 3 * 60;           // 3 minutes — slightly longer than 1-min refresh interval
-const REDIS_TTL_PROJECTIONS = 5 * 60;   // 5 minutes — fresh data every cycle
+const REDIS_TTL_ODDS = 15 * 60;          // 15 minutes — covers peak 10-min refresh + buffer
+const REDIS_TTL_PROJECTIONS = 35 * 60;  // 35 minutes — covers off-peak 30-min refresh + buffer
 
 // ── Bookmaker priority for best-line selection ────────────────────────────────
 const BOOK_PRIORITY = ['fanduel', 'draftkings', 'betmgm', 'caesars', 'espnbet'];

@@ -3,9 +3,15 @@
  *
  * Schedules:
  *   - Nightly ingest: 11:00 UTC daily (06:00 ET)
- *   - Odds refresh:   Every minute, 14:00–06:00 UTC (~9 AM – 1 AM ET)
+ *   - Odds refresh:
+ *       Peak (23:00–04:00 UTC / 6 PM – 11 PM ET): every 10 min
+ *       Off-peak (16:00–23:00, 04:00–06:00 UTC):  every 30 min
  *
- * Uses node-cron (cron syntax) with explicit timezone: 'UTC' for predictability.
+ * Budget: TheOddsAPI 20K plan = 20,000 credits/month.
+ *   ~33 credits per refresh (5 games avg), ~24 game days/month
+ *   Peak:     5h × 6/hr = 30 cycles/day × 33 = 990 credits
+ *   Off-peak: 11h × 2/hr = 22 cycles/day × 33 = 726 credits
+ *   Daily total: ~1,716 credits × 25 days = ~17,160/month (fits 20K)
  */
 
 import cron from 'node-cron';
@@ -15,6 +21,18 @@ import { runOddsRefresh } from './oddsRefresh';
 
 let schedulerStarted = false;
 let oddsRefreshRunning = false;
+
+async function safeOddsRefresh(): Promise<void> {
+  if (oddsRefreshRunning) return;
+  oddsRefreshRunning = true;
+  try {
+    await runOddsRefresh();
+  } catch (err: any) {
+    logger.error({ err: err.message }, '[Scheduler] Odds refresh threw');
+  } finally {
+    oddsRefreshRunning = false;
+  }
+}
 
 export function startScheduler(): void {
   if (schedulerStarted) return;
@@ -30,32 +48,18 @@ export function startScheduler(): void {
     }
   }, { timezone: 'UTC' });
 
-  // ── Odds refresh: every minute, 14:00–06:00 UTC (~9 AM – 1 AM ET) ─────────
-  // Guard against overlapping runs — if a refresh takes >60s, skip the next tick.
-  cron.schedule('* 14-23 * * *', async () => {
-    if (oddsRefreshRunning) return;
-    oddsRefreshRunning = true;
-    try {
-      await runOddsRefresh();
-    } catch (err: any) {
-      logger.error({ err: err.message }, '[Scheduler] Odds refresh threw');
-    } finally {
-      oddsRefreshRunning = false;
-    }
-  }, { timezone: 'UTC' });
+  // ── Peak: every 10 min, 23:00–04:00 UTC (6 PM – 11 PM ET) ────────────────
+  // This is when most NBA games are live — freshest odds matter most.
+  cron.schedule('*/10 23 * * *', safeOddsRefresh, { timezone: 'UTC' });
+  cron.schedule('*/10 0-3 * * *', safeOddsRefresh, { timezone: 'UTC' });
 
-  // Late window: 0–6 UTC (7 PM – 1 AM ET for West Coast / late games)
-  cron.schedule('* 0-6 * * *', async () => {
-    if (oddsRefreshRunning) return;
-    oddsRefreshRunning = true;
-    try {
-      await runOddsRefresh();
-    } catch (err: any) {
-      logger.error({ err: err.message }, '[Scheduler] Odds refresh threw');
-    } finally {
-      oddsRefreshRunning = false;
-    }
-  }, { timezone: 'UTC' });
+  // ── Off-peak: every 30 min, 16:00–22:00 UTC (11 AM – 5 PM ET) ────────────
+  // Pre-game hours — lines are posted but move slowly.
+  cron.schedule('*/30 16-22 * * *', safeOddsRefresh, { timezone: 'UTC' });
 
-  logger.info('[Scheduler] Cron jobs registered: nightly ingest + odds refresh (every 1 min)');
+  // ── Late: every 30 min, 04:00–06:00 UTC (11 PM – 1 AM ET) ────────────────
+  // West Coast late games winding down.
+  cron.schedule('*/30 4-5 * * *', safeOddsRefresh, { timezone: 'UTC' });
+
+  logger.info('[Scheduler] Cron jobs registered: nightly ingest + odds refresh (10 min peak / 30 min off-peak)');
 }
