@@ -13,10 +13,11 @@ export default function NotFoundScreen() {
   const pathname = usePathname();
   const params = useLocalSearchParams();
 
-  // Debug: Log what route was attempted
   useEffect(() => {
-    console.log('[404 NOT FOUND] Attempted pathname:', pathname);
-    console.log('[404 NOT FOUND] Params:', JSON.stringify(params));
+    if (__DEV__) {
+      console.log('[404 NOT FOUND] Attempted pathname:', pathname);
+      console.log('[404 NOT FOUND] Params:', JSON.stringify(params));
+    }
   }, [pathname, params]);
 
   return (

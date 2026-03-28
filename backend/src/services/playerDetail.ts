@@ -33,6 +33,7 @@ import { getTeamAbbreviation } from './teamAbbreviations';
 import { supabaseAdmin } from '../lib/supabaseAdmin';
 import { redisGetJSON } from '../lib/redis';
 import { REDIS_KEYS } from '../jobs/oddsRefresh';
+import logger from '../lib/logger';
 
 // ── Stat key mapping: analysis keys → projection keys ───────────────────────
 
@@ -377,7 +378,7 @@ async function resolveLineFromOdds(
       }
     }
   } catch (err: any) {
-    console.warn('[PlayerDetail] Line resolution from odds failed:', err.message);
+    logger.warn({ err: err.message }, '[PlayerDetail] Line resolution from odds failed');
   }
 
   // Fallback: use season average as synthetic line
@@ -397,7 +398,7 @@ export async function computePlayerDetail(
   requestedLine: number,
   bookmaker: string = 'fanduel'
 ): Promise<PlayerDetailResponse> {
-  console.log(`[PlayerDetail] Computing detail for player ${playerId}, stat=${stat}, line=${requestedLine}`);
+  logger.info({ playerId, stat, line: requestedLine }, '[PlayerDetail] Computing detail');
 
   // ── 1. Parallel fetch: player info + game logs ────────────────────────────
   const [playerInfo, enrichedLogs] = await Promise.all([
@@ -414,7 +415,7 @@ export async function computePlayerDetail(
   const teamAbbrev = getTeamAbbreviation(teamName);
 
   if (enrichedLogs.length === 0) {
-    console.warn(`[PlayerDetail] No game logs found for player ${playerId} (${fullName})`);
+    logger.warn({ playerId, fullName }, '[PlayerDetail] No game logs found');
   }
 
   // ── 2. Compute quick season average for line fallback ─────────────────────
@@ -445,7 +446,7 @@ export async function computePlayerDetail(
   // Guard against zero line — prevents NaN in projections
   if (resolvedLine <= 0) {
     resolvedLine = 1; // Minimal fallback to prevent division-by-zero
-    console.warn(`[PlayerDetail] Line resolved to 0 for player ${playerId}, using fallback=1`);
+    logger.warn({ playerId }, '[PlayerDetail] Line resolved to 0, using fallback=1');
   }
 
   // ── 4. Compute analysis (existing service) ────────────────────────────────
@@ -533,11 +534,11 @@ export async function computePlayerDetail(
             price: 0,
           };
           analysis.lineSpread = Math.round((maxLine - minLine) * 10) / 10;
-          console.log(`[PlayerDetail] Used pre-computed bookLines for ${fullName} line shopping (${entries.length} books)`);
+          logger.info({ player: fullName, books: entries.length }, '[PlayerDetail] Used pre-computed bookLines for line shopping');
         }
       }
     } catch (err: any) {
-      console.warn('[PlayerDetail] bookLines fallback failed:', err.message);
+      logger.warn({ err: err.message }, '[PlayerDetail] bookLines fallback failed');
     }
   }
 
@@ -582,7 +583,7 @@ export async function computePlayerDetail(
       }
     }
   } catch (err: any) {
-    console.warn('[PlayerDetail] Next game lookup failed:', err.message);
+    logger.warn({ err: err.message }, '[PlayerDetail] Next game lookup failed');
   }
 
   // ── 5b. Compute daysRest from most recent game (by date, not array position) ─

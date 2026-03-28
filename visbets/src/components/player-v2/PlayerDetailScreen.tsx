@@ -200,7 +200,7 @@ export function PlayerDetailScreenV2({
   );
 
   const handleConfidenceLongPress = useCallback(() => {
-    console.log('Confidence long press');
+    // Long press handler — placeholder for future tooltip/explainer
   }, []);
 
   // ── Render states ──────────────────────────────────────────────────────────

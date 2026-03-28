@@ -102,8 +102,6 @@ function mapStatType(rawStatType: string): string | null {
  */
 export async function fetchPrizePicksProps(): Promise<PlayerProp[]> {
   try {
-    console.log('[PrizePicks] Fetching NBA props...');
-
     const response = await axios.get<PrizePicksResponse>(PRIZEPICKS_API_URL, {
       params: { league_id: NBA_LEAGUE_ID },
       headers: {
@@ -113,21 +111,10 @@ export async function fetchPrizePicksProps(): Promise<PlayerProp[]> {
       timeout: 15000,
     });
 
-    console.log(`[PrizePicks] Received ${response.data?.data?.length || 0} projections, ${response.data?.included?.length || 0} included items`);
-
     const props = parsePrizePicksResponse(response.data);
-    console.log(`[PrizePicks] Parsed ${props.length} valid props`);
-
-    // Log stat type breakdown
-    const statCounts: Record<string, number> = {};
-    for (const prop of props) {
-      statCounts[prop.stat_type] = (statCounts[prop.stat_type] || 0) + 1;
-    }
-    console.log('[PrizePicks] Stat breakdown:', statCounts);
-
     return props;
   } catch (error) {
-    console.error('[PrizePicks] Error fetching data:', error);
+    if (__DEV__) console.error('[PrizePicks] Error fetching data:', error);
     throw error;
   }
 }
@@ -137,7 +124,7 @@ export async function fetchPrizePicksProps(): Promise<PlayerProp[]> {
  */
 function parsePrizePicksResponse(response: PrizePicksResponse): PlayerProp[] {
   if (!response || !response.data || !response.included) {
-    console.warn('[PrizePicks] Invalid response structure');
+    if (__DEV__) console.warn('[PrizePicks] Invalid response structure');
     return [];
   }
 
@@ -153,7 +140,7 @@ function parsePrizePicksResponse(response: PrizePicksResponse): PlayerProp[] {
     }
   }
 
-  console.log(`[PrizePicks] Found ${playerMap.size} players in included data`);
+  if (__DEV__) console.log(`[PrizePicks] Found ${playerMap.size} players in included data`);
 
   const props: PlayerProp[] = [];
   const today = new Date().toISOString();

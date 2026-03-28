@@ -155,10 +155,10 @@ describe('buildEnhancedProjection', () => {
     expect(result).toBeNull();
   });
 
-  it('sampleSize is capped at 15', () => {
-    const manyLogs = Array.from({ length: 25 }, (_, i) => makeLog(20 + i));
+  it('sampleSize is capped at 60', () => {
+    const manyLogs = Array.from({ length: 70 }, (_, i) => makeLog(20 + (i % 10)));
     const result = buildEnhancedProjection(buildInput({ gameLogs: manyLogs }))!;
-    expect(result.sampleSize).toBe(15);
+    expect(result.sampleSize).toBe(60);
   });
 
   it('confidence is "high" for large edge with enough games', () => {

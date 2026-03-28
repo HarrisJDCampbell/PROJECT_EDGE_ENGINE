@@ -53,9 +53,8 @@ export function PerformanceTrends({
     setChartMode(mode);
   }, []);
 
-  const handleChipPress = useCallback((game: GameChipData, index: number) => {
-    // Could open a bottom sheet with more details
-    console.log('Chip pressed:', game, index);
+  const handleChipPress = useCallback((_game: GameChipData, _index: number) => {
+    // Placeholder for future bottom sheet with game details
   }, []);
 
   return (
