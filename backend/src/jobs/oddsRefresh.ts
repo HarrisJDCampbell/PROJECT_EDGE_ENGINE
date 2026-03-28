@@ -494,6 +494,13 @@ export async function runOddsRefresh(): Promise<void> {
     return;
   }
 
+  // Skip if backfill is running — avoid competing for API-Sports rate limits
+  const { isBackfillRunning } = await import('./backfill');
+  if (isBackfillRunning()) {
+    logger.info('[OddsRefresh] Skipping — backfill in progress');
+    return;
+  }
+
   const startTime = Date.now();
   logger.info('[OddsRefresh] Started');
 

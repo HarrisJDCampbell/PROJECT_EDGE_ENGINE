@@ -3,7 +3,8 @@
  * and upserts them into the game_logs table.
  *
  * Reuses the existing ingestBoxScores() from nightlyIngest.ts.
- * Adds a 1-second delay between dates to respect API-Sports rate limits.
+ * Uses 3-second delays between dates to avoid starving live user requests
+ * and competing with the odds refresh cron for API-Sports rate limits.
  */
 
 import logger from '../lib/logger';
@@ -29,8 +30,6 @@ export async function runBackfill(days: number): Promise<void> {
   logger.info({ days }, '[Backfill] Starting historical game_logs backfill');
 
   // Flush cached schedule data so historical dates hit the API fresh.
-  // Without this, stale cached responses (e.g., games that were "Not Started"
-  // when first fetched) prevent the backfill from seeing "Game Finished" games.
   invalidatePattern('api-sports:games:');
   invalidatePattern('api-sports:boxscore:');
 
@@ -44,15 +43,17 @@ export async function runBackfill(days: number): Promise<void> {
         const rows = await ingestBoxScores(dateStr);
         totalRows += rows;
         if (rows > 0) {
-          logger.info({ date: dateStr, rows }, '[Backfill] Date ingested');
+          logger.info({ date: dateStr, rows, totalRows }, '[Backfill] Date ingested');
         }
       } catch (err: any) {
         logger.warn({ date: dateStr, err: err.message }, '[Backfill] Date failed — continuing');
       }
 
-      // Rate-limit: 1 second between dates to stay under API-Sports quota
+      // 3-second delay between dates — gives breathing room for user requests
+      // and odds refresh cron. Each date fetches 5-15 box scores, so this
+      // keeps API-Sports usage well under rate limits.
       if (daysBack > 1) {
-        await new Promise((r) => setTimeout(r, 1000));
+        await new Promise((r) => setTimeout(r, 3000));
       }
     }
 
